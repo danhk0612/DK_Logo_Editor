@@ -10,4 +10,5 @@ public sealed record NaturalLogoEditRequest(
     bool TransparentBackground,
     string? BackgroundColorHex,
     string AspectRatio,
-    string Resolution = "2K");
+    string Resolution = "2K",
+    LogoLayoutPlan? LayoutPlan = null);
