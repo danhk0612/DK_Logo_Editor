@@ -19,7 +19,22 @@
 
         <StackPanel Grid.Row="0" Margin="0,0,0,18">
             <TextBlock Text="OpenRouter API Key" FontWeight="SemiBold" Margin="0,0,0,6" />
-            <PasswordBox x:Name="ApiKeyBox" Height="30" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="38" />
+                </Grid.ColumnDefinitions>
+                <PasswordBox x:Name="ApiKeyBox" Grid.Column="0" Height="30" />
+                <TextBox x:Name="ApiKeyTextBox" Grid.Column="0" Height="30" Visibility="Collapsed" />
+                <Button Grid.Column="2"
+                        Width="38"
+                        Height="30"
+                        Content="👁"
+                        FontSize="15"
+                        ToolTip="API Key 표시/숨기기"
+                        Click="ToggleApiKeyVisibilityButton_Click" />
+            </Grid>
         </StackPanel>
 
         <StackPanel Grid.Row="1" Margin="0,0,0,18">

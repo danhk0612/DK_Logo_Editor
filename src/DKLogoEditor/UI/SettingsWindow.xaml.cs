@@ -25,8 +25,27 @@ public partial class SettingsWindow : Window
         _customModels = [.. settings.CustomModels];
 
         ApiKeyBox.Password = settings.ApiKey;
+        ApiKeyTextBox.Text = settings.ApiKey;
         RefreshCustomModels();
         RefreshDefaultModels(settings.DefaultModelId);
+    }
+
+    private void ToggleApiKeyVisibilityButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (ApiKeyBox.Visibility == Visibility.Visible)
+        {
+            ApiKeyTextBox.Text = ApiKeyBox.Password;
+            ApiKeyBox.Visibility = Visibility.Collapsed;
+            ApiKeyTextBox.Visibility = Visibility.Visible;
+            ApiKeyTextBox.Focus();
+            ApiKeyTextBox.CaretIndex = ApiKeyTextBox.Text.Length;
+            return;
+        }
+
+        ApiKeyBox.Password = ApiKeyTextBox.Text;
+        ApiKeyTextBox.Visibility = Visibility.Collapsed;
+        ApiKeyBox.Visibility = Visibility.Visible;
+        ApiKeyBox.Focus();
     }
 
     private void AddCustomModelButton_Click(object sender, RoutedEventArgs e)
@@ -69,13 +88,20 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        _settings.ApiKey = ApiKeyBox.Password.Trim();
+        _settings.ApiKey = GetCurrentApiKey().Trim();
         _settings.CustomModels = [.. _customModels];
         _settings.DefaultModelId = (DefaultModelComboBox.SelectedItem as ModelOption)?.ModelId
                                    ?? ModelPresets.DefaultModelId;
 
         _settingsStore.Save(_settings);
         DialogResult = true;
+    }
+
+    private string GetCurrentApiKey()
+    {
+        return ApiKeyBox.Visibility == Visibility.Visible
+            ? ApiKeyBox.Password
+            : ApiKeyTextBox.Text;
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)

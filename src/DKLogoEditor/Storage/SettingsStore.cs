@@ -40,7 +40,8 @@ public sealed class SettingsStore
             DefaultModelId = string.IsNullOrWhiteSpace(stored.DefaultModelId)
                 ? ModelPresets.DefaultModelId
                 : stored.DefaultModelId,
-            CustomModels = stored.CustomModels ?? []
+            CustomModels = stored.CustomModels ?? [],
+            Editor = stored.Editor ?? new EditorSessionSettings()
         };
     }
 
@@ -53,7 +54,8 @@ public sealed class SettingsStore
         {
             EncryptedApiKey = Encrypt(settings.ApiKey),
             DefaultModelId = settings.DefaultModelId,
-            CustomModels = settings.CustomModels
+            CustomModels = settings.CustomModels,
+            Editor = settings.Editor
         };
 
         var json = JsonSerializer.Serialize(stored, JsonOptions);
@@ -91,5 +93,7 @@ public sealed class SettingsStore
         public string DefaultModelId { get; set; } = ModelPresets.DefaultModelId;
 
         public List<string>? CustomModels { get; set; }
+
+        public EditorSessionSettings? Editor { get; set; }
     }
 }
