@@ -108,7 +108,7 @@ Reduce the original logo only when needed to create a balanced composition. Keep
 The subtitle is secondary information and must not overpower the logo. Logo and subtitle areas must not overlap. Keep comfortable outer margins.
 
 Return ONLY one JSON object. All coordinates and sizes are normalized from 0.0 to 1.0 relative to the final canvas:
-{
+{{
   "logo_x": 0.0,
   "logo_y": 0.0,
   "logo_width": 0.0,
@@ -118,7 +118,7 @@ Return ONLY one JSON object. All coordinates and sizes are normalized from 0.0 t
   "subtitle_width": 0.0,
   "subtitle_height": 0.0,
   "subtitle_alignment": "left|center|right"
-}
+}}
 
 Use rectangles that fit fully inside the canvas and do not overlap. The program will preserve the original logo aspect ratio inside your proposed logo rectangle.
 """;
