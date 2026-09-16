@@ -439,10 +439,20 @@ public partial class MainWindow : Window
 
     private bool TryGetOutputSize(out int width, out int height)
     {
-        return int.TryParse(OutputWidthTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out width)
-               && int.TryParse(OutputHeightTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out height)
-               && width > 0
-               && height > 0;
+        width = 0;
+        height = 0;
+
+        if (!int.TryParse(OutputWidthTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedWidth)
+            || !int.TryParse(OutputHeightTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedHeight)
+            || parsedWidth <= 0
+            || parsedHeight <= 0)
+        {
+            return false;
+        }
+
+        width = parsedWidth;
+        height = parsedHeight;
+        return true;
     }
 
     private Color GetBackgroundColorOrDefault()
