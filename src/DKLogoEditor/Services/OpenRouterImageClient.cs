@@ -31,16 +31,43 @@ public sealed class OpenRouterImageClient
             throw new ArgumentException("Source image is empty.", nameof(request));
         }
 
-        var sourceDataUrl = $"data:{request.SourceMediaType};base64,{Convert.ToBase64String(request.SourceImageBytes)}";
+        var effectiveRequest = request;
+        if (!string.IsNullOrWhiteSpace(request.Subtitle) && request.LayoutPlan is null)
+        {
+            try
+            {
+                var planner = new OpenRouterLayoutPlanner(_httpClient);
+                var plan = await planner.PlanAsync(
+                    apiKey,
+                    request.SourceImageBytes,
+                    request.SourceMediaType,
+                    request.Subtitle,
+                    request.OutputWidth,
+                    request.OutputHeight,
+                    cancellationToken);
+                effectiveRequest = request with { LayoutPlan = plan };
+            }
+            catch (HttpRequestException)
+            {
+                // Layout planning is an enhancement. If it fails, keep the primary
+                // image edit available and let the image model decide the layout itself.
+            }
+            catch (JsonException)
+            {
+                // Same fallback for an unexpected planner response.
+            }
+        }
+
+        var sourceDataUrl = $"data:{effectiveRequest.SourceMediaType};base64,{Convert.ToBase64String(effectiveRequest.SourceImageBytes)}";
         var payload = new
         {
-            model = request.ModelId,
-            prompt = AiNaturalEditPromptBuilder.Build(request),
-            resolution = request.Resolution,
-            aspect_ratio = request.AspectRatio,
+            model = effectiveRequest.ModelId,
+            prompt = AiNaturalEditPromptBuilder.Build(effectiveRequest),
+            resolution = effectiveRequest.Resolution,
+            aspect_ratio = effectiveRequest.AspectRatio,
             quality = "high",
             output_format = "png",
-            background = request.TransparentBackground ? "transparent" : "opaque",
+            background = effectiveRequest.TransparentBackground ? "transparent" : "opaque",
             input_references = new[]
             {
                 new
@@ -54,7 +81,7 @@ public sealed class OpenRouterImageClient
             }
         };
 
-        return await SendImageRequestAsync(apiKey, payload, request.ModelId, cancellationToken);
+        return await SendImageRequestAsync(apiKey, payload, effectiveRequest.ModelId, cancellationToken);
     }
 
     public async Task<OpenRouterImageResult> EditAsync(
