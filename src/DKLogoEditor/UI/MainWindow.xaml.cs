@@ -101,69 +101,46 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(_settings.ApiKey))
+        {
+            MessageBox.Show(this, "AI 편집을 사용하려면 설정에서 OpenRouter API Key를 입력해 주세요.", "OpenRouter API Key", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
         var transparentBackground = TransparentBackgroundRadioButton.IsChecked == true;
         var backgroundColor = GetBackgroundColorOrDefault();
         var subtitle = SubtitleTextBox.Text.Trim();
         var selectedModelId = (ModelComboBox.SelectedItem as ModelOption)?.ModelId
                               ?? _settings.DefaultModelId;
-
-        if (!string.IsNullOrWhiteSpace(subtitle) && string.IsNullOrWhiteSpace(_settings.ApiKey))
-        {
-            MessageBox.Show(this, "부기명을 생성하려면 설정에서 OpenRouter API Key를 입력해 주세요.", "OpenRouter API Key", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
+        var aspectRatio = ImagePostProcessor.SelectClosestAspectRatio(outputWidth, outputHeight);
 
         _isGenerating = true;
         GenerateButton.IsEnabled = false;
-        GenerateButton.Content = "생성 중...";
+        GenerateButton.Content = "AI 편집 중...";
         SaveEditorState();
 
         try
         {
-            var protectedLayer = LogoBackgroundProcessor.ExtractProtectedLogo(_sourceBitmap);
-            BitmapSource finalResult;
+            var request = new NaturalLogoEditRequest(
+                BitmapSourceCodec.EncodePng(_sourceBitmap),
+                "image/png",
+                selectedModelId,
+                subtitle,
+                outputWidth,
+                outputHeight,
+                transparentBackground,
+                transparentBackground ? null : FormatColor(backgroundColor),
+                aspectRatio,
+                "2K");
 
-            if (string.IsNullOrWhiteSpace(subtitle))
-            {
-                finalResult = ImageComposer.ComposeProtectedLogo(
-                    protectedLayer.Image,
-                    outputWidth,
-                    outputHeight,
-                    transparentBackground,
-                    backgroundColor,
-                    reserveSubtitle: false);
-            }
-            else
-            {
-                var preparedInput = ImageComposer.ComposeProtectedLogo(
-                    protectedLayer.Image,
-                    outputWidth,
-                    outputHeight,
-                    transparentBackground,
-                    backgroundColor,
-                    reserveSubtitle: true);
-
-                var request = new LogoSubtitleEditRequest(
-                    BitmapSourceCodec.EncodePng(preparedInput),
-                    "image/png",
-                    selectedModelId,
-                    subtitle,
-                    outputWidth,
-                    outputHeight,
-                    transparentBackground,
-                    transparentBackground ? null : FormatColor(backgroundColor));
-
-                var aiResult = await _openRouterImageClient.EditAsync(_settings.ApiKey, request);
-                var aiReference = BitmapSourceCodec.Decode(aiResult.ImageBytes);
-
-                finalResult = ImageComposer.ComposeWithAiSubtitle(
-                    protectedLayer.Image,
-                    aiReference,
-                    outputWidth,
-                    outputHeight,
-                    transparentBackground,
-                    backgroundColor);
-            }
+            var aiResult = await _openRouterImageClient.NaturalEditAsync(_settings.ApiKey, request);
+            var aiBitmap = BitmapSourceCodec.Decode(aiResult.ImageBytes);
+            var finalResult = ImagePostProcessor.FitToOutput(
+                aiBitmap,
+                outputWidth,
+                outputHeight,
+                transparentBackground,
+                backgroundColor);
 
             var outputPath = SetResultAndAutoSave(finalResult);
             SaveAsButton.ToolTip = $"자동 저장됨: {outputPath}";
