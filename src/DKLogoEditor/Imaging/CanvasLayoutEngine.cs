@@ -47,6 +47,7 @@ public static class CanvasLayoutEngine
         var logoArea = ToSafeRect(canvasWidth, canvasHeight, plan.LogoX, plan.LogoY, plan.LogoWidth, plan.LogoHeight);
         var subtitleArea = ToSafeRect(canvasWidth, canvasHeight, plan.SubtitleX, plan.SubtitleY, plan.SubtitleWidth, plan.SubtitleHeight);
         var logoBounds = FitInto(logoArea, logoWidth, logoHeight);
+        var alignment = NormalizeAlignment(plan.SubtitleAlignment);
 
         if (IntersectsWithMargin(logoBounds, subtitleArea, Math.Max(1, Math.Min(canvasWidth, canvasHeight) / 50)))
         {
@@ -54,9 +55,10 @@ public static class CanvasLayoutEngine
             logoArea = ToSafeRect(canvasWidth, canvasHeight, fallback.LogoX, fallback.LogoY, fallback.LogoWidth, fallback.LogoHeight);
             subtitleArea = ToSafeRect(canvasWidth, canvasHeight, fallback.SubtitleX, fallback.SubtitleY, fallback.SubtitleWidth, fallback.SubtitleHeight);
             logoBounds = FitInto(logoArea, logoWidth, logoHeight);
+            alignment = fallback.SubtitleAlignment;
         }
 
-        return new LogoCanvasLayout(logoBounds, subtitleArea, NormalizeAlignment(plan.SubtitleAlignment));
+        return new LogoCanvasLayout(logoBounds, subtitleArea, alignment);
     }
 
     public static Int32Rect GetNormalizedSubtitleBounds(int width, int height, LogoLayoutPlan plan)
@@ -92,12 +94,15 @@ public static class CanvasLayoutEngine
 
     private static bool IntersectsWithMargin(Int32Rect first, Int32Rect second, int margin)
     {
-        var expanded = new Int32Rect(
-            Math.Max(0, first.X - margin),
-            Math.Max(0, first.Y - margin),
-            first.Width + margin * 2,
-            first.Height + margin * 2);
-        return expanded.IntersectsWith(second);
+        var left = first.X - margin;
+        var top = first.Y - margin;
+        var right = first.X + first.Width + margin;
+        var bottom = first.Y + first.Height + margin;
+
+        return left < second.X + second.Width
+               && right > second.X
+               && top < second.Y + second.Height
+               && bottom > second.Y;
     }
 
     private static string NormalizeAlignment(string? alignment)
