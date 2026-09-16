@@ -14,4 +14,5 @@ public sealed record LogoSubtitleEditRequest(
 public sealed record OpenRouterImageResult(
     byte[] ImageBytes,
     string MediaType,
-    string ModelId);
+    string ModelId,
+    double? CostUsd = null);
