@@ -49,6 +49,24 @@ public static class ImageComposer
         int outputWidth,
         int outputHeight,
         bool transparentBackground,
+        Color backgroundColor)
+    {
+        return ComposeWithAiSubtitle(
+            protectedLogo,
+            aiReference,
+            outputWidth,
+            outputHeight,
+            transparentBackground,
+            backgroundColor,
+            LogoLayoutPlan.Fallback(outputWidth, outputHeight, 1));
+    }
+
+    public static BitmapSource ComposeWithAiSubtitle(
+        BitmapSource protectedLogo,
+        BitmapSource aiReference,
+        int outputWidth,
+        int outputHeight,
+        bool transparentBackground,
         Color backgroundColor,
         LogoLayoutPlan plan)
     {
