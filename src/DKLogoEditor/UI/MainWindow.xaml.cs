@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -119,6 +120,8 @@ public partial class MainWindow : Window
         GenerateButton.Content = "AI 편집 중...";
         SaveEditorState();
 
+        var stopwatch = Stopwatch.StartNew();
+
         try
         {
             var request = new NaturalLogoEditRequest(
@@ -134,7 +137,12 @@ public partial class MainWindow : Window
                 "2K");
 
             var aiResult = await _openRouterImageClient.NaturalEditAsync(_settings.ApiKey, request);
+            stopwatch.Stop();
+
             var aiBitmap = BitmapSourceCodec.Decode(aiResult.ImageBytes);
+            var rawPath = ResultFileService.GetAutomaticAiRawPath(_settings.Editor.SourceImagePath);
+            ResultFileService.SavePng(aiBitmap, rawPath);
+
             var finalResult = ImagePostProcessor.FitToOutput(
                 aiBitmap,
                 outputWidth,
@@ -143,10 +151,16 @@ public partial class MainWindow : Window
                 backgroundColor);
 
             var outputPath = SetResultAndAutoSave(finalResult);
-            SaveAsButton.ToolTip = $"자동 저장됨: {outputPath}";
+            var costText = aiResult.CostUsd.HasValue
+                ? $"${aiResult.CostUsd.Value:0.######}"
+                : "확인 불가";
+
+            SaveAsButton.ToolTip =
+                $"AI 생성 확인됨\n모델: {aiResult.ModelId}\n소요: {stopwatch.Elapsed.TotalSeconds:0.0}초\nAI 원본: {aiBitmap.PixelWidth}×{aiBitmap.PixelHeight}\n비용: {costText}\n원본 AI 결과: {rawPath}\n최종 저장: {outputPath}";
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
             MessageBox.Show(this, ex.Message, "생성 실패", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
