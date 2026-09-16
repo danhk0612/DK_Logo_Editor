@@ -38,6 +38,9 @@ public sealed class OpenRouterImageClient
             prompt = AiNaturalEditPromptBuilder.Build(request),
             resolution = request.Resolution,
             aspect_ratio = request.AspectRatio,
+            quality = "high",
+            output_format = "png",
+            background = request.TransparentBackground ? "transparent" : "opaque",
             input_references = new[]
             {
                 new
@@ -135,9 +138,18 @@ public sealed class OpenRouterImageClient
             ? mediaTypeElement.GetString() ?? "image/png"
             : "image/png";
 
+        double? costUsd = null;
+        if (json.RootElement.TryGetProperty("usage", out var usage)
+            && usage.TryGetProperty("cost", out var cost)
+            && cost.TryGetDouble(out var parsedCost))
+        {
+            costUsd = parsedCost;
+        }
+
         return new OpenRouterImageResult(
             Convert.FromBase64String(base64),
             mediaType,
-            modelId);
+            modelId,
+            costUsd);
     }
 }
