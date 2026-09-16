@@ -8,9 +8,29 @@ public sealed record ProtectedLogoLayer(BitmapSource Image, Color DetectedBackgr
 
 public static class LogoBackgroundProcessor
 {
-    private const int ColorTolerance = 24;
+    private const int ColorTolerance = 42;
 
     public static ProtectedLogoLayer ExtractProtectedLogo(BitmapSource source)
+    {
+        var processed = RemoveBackgroundPreserveSize(source, null, out var backgroundColor);
+        var bounds = FindOpaqueBounds(processed);
+
+        if (bounds.IsEmpty)
+        {
+            return new ProtectedLogoLayer(processed, backgroundColor);
+        }
+
+        var cropped = new CroppedBitmap(processed, bounds);
+        cropped.Freeze();
+        return new ProtectedLogoLayer(cropped, backgroundColor);
+    }
+
+    public static BitmapSource RemoveBackgroundPreserveSize(BitmapSource source, Color? preferredBackground = null)
+    {
+        return RemoveBackgroundPreserveSize(source, preferredBackground, out _);
+    }
+
+    private static BitmapSource RemoveBackgroundPreserveSize(BitmapSource source, Color? preferredBackground, out Color backgroundColor)
     {
         var converted = source.Format == PixelFormats.Bgra32
             ? source
@@ -22,8 +42,37 @@ public static class LogoBackgroundProcessor
         var pixels = new byte[stride * height];
         converted.CopyPixels(pixels, stride, 0);
 
-        var backgroundColor = EstimateBackgroundColor(pixels, width, height, stride);
-        var backgroundMask = BuildBackgroundMask(pixels, width, height, stride, backgroundColor);
+        backgroundColor = preferredBackground ?? EstimateBackgroundColor(pixels, width, height, stride);
+        var mask = BuildBackgroundMask(pixels, width, height, stride, backgroundColor);
+
+        for (var i = 0; i < mask.Length; i++)
+        {
+            if (mask[i])
+            {
+                pixels[i * 4 + 3] = 0;
+            }
+        }
+
+        var result = BitmapSource.Create(
+            width,
+            height,
+            converted.DpiX,
+            converted.DpiY,
+            PixelFormats.Bgra32,
+            null,
+            pixels,
+            stride);
+        result.Freeze();
+        return result;
+    }
+
+    private static Int32Rect FindOpaqueBounds(BitmapSource source)
+    {
+        var width = source.PixelWidth;
+        var height = source.PixelHeight;
+        var stride = width * 4;
+        var pixels = new byte[stride * height];
+        source.CopyPixels(pixels, stride, 0);
 
         var minX = width;
         var minY = height;
@@ -34,16 +83,7 @@ public static class LogoBackgroundProcessor
         {
             for (var x = 0; x < width; x++)
             {
-                var pixelIndex = y * stride + x * 4;
-                var maskIndex = y * width + x;
-
-                if (backgroundMask[maskIndex])
-                {
-                    pixels[pixelIndex + 3] = 0;
-                    continue;
-                }
-
-                if (pixels[pixelIndex + 3] == 0)
+                if (pixels[y * stride + x * 4 + 3] < 8)
                 {
                     continue;
                 }
@@ -55,46 +95,14 @@ public static class LogoBackgroundProcessor
             }
         }
 
-        if (maxX < minX || maxY < minY)
-        {
-            minX = 0;
-            minY = 0;
-            maxX = width - 1;
-            maxY = height - 1;
-        }
-
-        var transparent = BitmapSource.Create(
-            width,
-            height,
-            converted.DpiX,
-            converted.DpiY,
-            PixelFormats.Bgra32,
-            null,
-            pixels,
-            stride);
-        transparent.Freeze();
-
-        var crop = new Int32Rect(
-            minX,
-            minY,
-            maxX - minX + 1,
-            maxY - minY + 1);
-        var cropped = new CroppedBitmap(transparent, crop);
-        cropped.Freeze();
-
-        return new ProtectedLogoLayer(cropped, backgroundColor);
+        return maxX < minX || maxY < minY
+            ? Int32Rect.Empty
+            : new Int32Rect(minX, minY, maxX - minX + 1, maxY - minY + 1);
     }
 
     private static Color EstimateBackgroundColor(byte[] pixels, int width, int height, int stride)
     {
-        var points = new[]
-        {
-            (0, 0),
-            (width - 1, 0),
-            (0, height - 1),
-            (width - 1, height - 1)
-        };
-
+        var points = new[] { (0, 0), (width - 1, 0), (0, height - 1), (width - 1, height - 1) };
         var red = 0;
         var green = 0;
         var blue = 0;
@@ -103,8 +111,7 @@ public static class LogoBackgroundProcessor
         foreach (var (x, y) in points)
         {
             var index = y * stride + x * 4;
-            var alpha = pixels[index + 3];
-            if (alpha < 16)
+            if (pixels[index + 3] < 16)
             {
                 continue;
             }
@@ -115,23 +122,12 @@ public static class LogoBackgroundProcessor
             count++;
         }
 
-        if (count == 0)
-        {
-            return Colors.Transparent;
-        }
-
-        return Color.FromRgb(
-            (byte)(red / count),
-            (byte)(green / count),
-            (byte)(blue / count));
+        return count == 0
+            ? Colors.Transparent
+            : Color.FromRgb((byte)(red / count), (byte)(green / count), (byte)(blue / count));
     }
 
-    private static bool[] BuildBackgroundMask(
-        byte[] pixels,
-        int width,
-        int height,
-        int stride,
-        Color backgroundColor)
+    private static bool[] BuildBackgroundMask(byte[] pixels, int width, int height, int stride, Color backgroundColor)
     {
         var mask = new bool[width * height];
         var queue = new Queue<(int X, int Y)>();
@@ -188,10 +184,10 @@ public static class LogoBackgroundProcessor
         var alpha = pixels[index + 3];
         if (backgroundColor.A == 0)
         {
-            return alpha < 32;
+            return alpha < 48;
         }
 
-        if (alpha < 32)
+        if (alpha < 24)
         {
             return false;
         }

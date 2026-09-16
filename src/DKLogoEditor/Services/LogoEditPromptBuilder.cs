@@ -6,32 +6,28 @@ public static class LogoEditPromptBuilder
 {
     public static string Build(LogoSubtitleEditRequest request)
     {
+        var p = request.LayoutPlan;
         var backgroundInstruction = request.TransparentBackground
-            ? "Preserve the transparent background. Do not introduce an opaque background."
-            : $"Preserve the existing flat background color {request.BackgroundColorHex ?? "#FFFFFF"} exactly.";
-
-        var subtitleInstruction = string.IsNullOrWhiteSpace(request.Subtitle)
-            ? "Do not add any subtitle text."
-            : $"Add the subtitle text exactly as written: \"{request.Subtitle}\". Draw it naturally inside the empty lower subtitle area only, with appropriate font style, spacing, alignment, and visual balance relative to the protected logo.";
+            ? "Keep the background transparent. Do not create a white or colored panel behind the subtitle."
+            : $"The canvas background is {request.BackgroundColorHex ?? "#FFFFFF"}. Do not create a separate panel, banner, strip, box, or plate behind the subtitle.";
 
         return $"""
-The input image is already prepared as the final {request.OutputWidth} x {request.OutputHeight} logo composition canvas.
-The original logo artwork is already positioned and scaled correctly. Treat it as a protected, immutable layer.
+Add ONLY the supplementary name exactly as written: "{request.Subtitle}".
+The supplied image is an intermediate {request.OutputWidth} x {request.OutputHeight} composition whose original logo is already positioned correctly.
 
-STRICT PRESERVATION RULE:
-- Do not move, redraw, recolor, restyle, reshape, retouch, simplify, sharpen, blur, or otherwise modify the existing logo artwork.
-- Do not add content over the logo artwork.
-- Do not alter pixels outside the reserved lower subtitle area except where strictly necessary to preserve transparency.
-- Do not recreate or duplicate the logo.
-
-EDITABLE AREA:
-- Only the empty lower subtitle area is editable.
-- The subtitle must remain entirely inside that area.
+STRICT RULES:
+- Never redraw, edit, recolor, restyle, sharpen, blur, distort, replace, or cover any part of the existing logo.
+- Add only the new subtitle text.
+- Do not create a box, panel, banner, rectangle, strip, badge, or decorative background behind the subtitle.
+- Render clean, crisp professional lettering suitable for a corporate logo lockup.
+- Match the visual weight and character of the existing logo without imitating or changing its actual artwork.
+- Subtitle alignment: {p.SubtitleAlignment}.
+- Place all newly generated subtitle pixels only inside this normalized canvas region: x={p.SubtitleX:F3}, y={p.SubtitleY:F3}, width={p.SubtitleWidth:F3}, height={p.SubtitleHeight:F3}.
+- Keep clear space between the existing logo and the subtitle.
 
 {backgroundInstruction}
-{subtitleInstruction}
 
-Return a clean logo image with the same overall composition and aspect ratio. The existing logo must remain visually unchanged.
+Return the complete image, but the only visible difference from the supplied image must be the added subtitle text inside the specified region.
 """;
     }
 }
