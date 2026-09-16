@@ -45,6 +45,7 @@ public partial class MainWindow : Window
         SynchronizeBackgroundColorFromText();
         UpdateBackgroundColorUi();
         UpdateGenerateButtonState();
+        GenerationStatusTextBlock.Text = "AI 자연 편집 모드 준비됨";
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -118,6 +119,7 @@ public partial class MainWindow : Window
         _isGenerating = true;
         GenerateButton.IsEnabled = false;
         GenerateButton.Content = "AI 편집 중...";
+        GenerationStatusTextBlock.Text = $"OpenRouter 요청 중...\n{selectedModelId} / {aspectRatio} / 2K";
         SaveEditorState();
 
         var stopwatch = Stopwatch.StartNew();
@@ -139,9 +141,12 @@ public partial class MainWindow : Window
             var aiResult = await _openRouterImageClient.NaturalEditAsync(_settings.ApiKey, request);
             stopwatch.Stop();
 
-            var aiBitmap = BitmapSourceCodec.Decode(aiResult.ImageBytes);
             var rawPath = ResultFileService.GetAutomaticAiRawPath(_settings.Editor.SourceImagePath);
-            ResultFileService.SavePng(aiBitmap, rawPath);
+            await File.WriteAllBytesAsync(rawPath, aiResult.ImageBytes);
+
+            var aiBitmap = BitmapSourceCodec.Decode(aiResult.ImageBytes);
+            GenerationStatusTextBlock.Text =
+                $"AI 응답 완료: {stopwatch.Elapsed.TotalSeconds:0.0}초 / {aiBitmap.PixelWidth}×{aiBitmap.PixelHeight}\nraw: {Path.GetFileName(rawPath)}";
 
             var finalResult = ImagePostProcessor.FitToOutput(
                 aiBitmap,
@@ -157,10 +162,13 @@ public partial class MainWindow : Window
 
             SaveAsButton.ToolTip =
                 $"AI 생성 확인됨\n모델: {aiResult.ModelId}\n소요: {stopwatch.Elapsed.TotalSeconds:0.0}초\nAI 원본: {aiBitmap.PixelWidth}×{aiBitmap.PixelHeight}\n비용: {costText}\n원본 AI 결과: {rawPath}\n최종 저장: {outputPath}";
+
+            GenerationStatusTextBlock.Text += $"\n최종: {Path.GetFileName(outputPath)}";
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
+            GenerationStatusTextBlock.Text = $"AI 생성 실패: {ex.Message}";
             MessageBox.Show(this, ex.Message, "생성 실패", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
@@ -358,6 +366,7 @@ public partial class MainWindow : Window
         ResultPreview.SetImage(null, "결과 미리보기");
         SaveAsButton.IsEnabled = false;
         SaveAsButton.ToolTip = null;
+        GenerationStatusTextBlock.Text = "AI 자연 편집 모드 준비됨";
         UpdateGenerateButtonState();
     }
 
