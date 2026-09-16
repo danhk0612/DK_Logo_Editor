@@ -73,7 +73,47 @@
                                  GroupName="BackgroundMode"
                                  Margin="14,0,0,0" />
                 </StackPanel>
-                <TextBox x:Name="BackgroundColorTextBox" Text="#FFFFFF" Height="30" Margin="0,0,0,16" />
+
+                <StackPanel x:Name="BackgroundColorPanel" Margin="0,0,0,16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="34" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="BackgroundColorTextBox"
+                                 Grid.Column="0"
+                                 Text="#FFFFFF"
+                                 Height="30" />
+                        <Button x:Name="BackgroundColorPickerButton"
+                                Grid.Column="2"
+                                Height="30"
+                                ToolTip="색상 선택"
+                                Click="BackgroundColorPickerButton_Click">
+                            <Border x:Name="BackgroundColorSwatch"
+                                    Width="18"
+                                    Height="18"
+                                    BorderBrush="#666666"
+                                    BorderThickness="1"
+                                    Background="White" />
+                        </Button>
+                    </Grid>
+                    <Popup x:Name="BackgroundColorPickerPopup"
+                           Placement="Bottom"
+                           PlacementTarget="{Binding ElementName=BackgroundColorPickerButton}"
+                           StaysOpen="False"
+                           AllowsTransparency="True">
+                        <Border Background="White"
+                                BorderBrush="#A0A0A0"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8"
+                                Margin="0,4,0,0">
+                            <local:ColorPickerControl x:Name="BackgroundColorPicker"
+                                                      SelectedColorChanged="BackgroundColorPicker_SelectedColorChanged" />
+                        </Border>
+                    </Popup>
+                </StackPanel>
 
                 <TextBlock Text="부기명" FontWeight="SemiBold" Margin="0,0,0,6" />
                 <TextBox x:Name="SubtitleTextBox" Height="30" Margin="0,0,0,16" />
@@ -108,7 +148,8 @@
                         Content="생성 / 편집"
                         Height="40"
                         Margin="0,0,0,10"
-                        IsEnabled="False" />
+                        IsEnabled="False"
+                        Click="GenerateButton_Click" />
                 <Button x:Name="SaveAsButton"
                         Content="다른 이름으로 저장"
                         Height="36"
