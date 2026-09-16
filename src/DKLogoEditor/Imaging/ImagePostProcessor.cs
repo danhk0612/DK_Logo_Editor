@@ -147,8 +147,8 @@ public static class ImagePostProcessor
         Int32Rect contentBounds,
         double targetRatio)
     {
-        var desiredWidth = (double)contentBounds.Width;
-        var desiredHeight = contentBounds.Height;
+        double desiredWidth = contentBounds.Width;
+        double desiredHeight = contentBounds.Height;
 
         if (desiredWidth / desiredHeight > targetRatio)
         {
