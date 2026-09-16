@@ -15,14 +15,14 @@
 
 ## T02. 설정 저장 및 모델 목록
 
-- [ ] AppSettings 정의
-- [ ] OpenRouter API Key 저장/로드
-- [ ] 기본 모델 프리셋 정의
-- [ ] 기본 모델 선택 저장
-- [ ] 커스텀 model slug 추가/삭제
-- [ ] 메인 창 모델 셀렉터와 연결
+- [x] AppSettings 정의
+- [x] OpenRouter API Key 저장/로드
+- [x] 기본 모델 프리셋 정의
+- [x] 기본 모델 선택 저장
+- [x] 커스텀 model slug 추가/삭제
+- [x] 메인 창 모델 셀렉터와 연결
 
-완료 조건: 재실행 후 설정과 커스텀 모델 목록이 유지된다.
+구현 검증: GitHub Actions Windows/.NET 8 Release 빌드 성공. 실제 저장 → 종료 → 재실행 유지 확인은 통합 실행 검증에서 확인한다.
 
 ## T03. OpenRouter 클라이언트
 
