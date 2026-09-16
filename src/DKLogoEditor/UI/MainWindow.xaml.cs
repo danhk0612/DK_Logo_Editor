@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private readonly SettingsStore _settingsStore = new();
     private readonly ModelCatalogService _modelCatalogService = new();
     private readonly OpenRouterImageClient _openRouterImageClient = new();
+    private readonly OpenRouterLayoutPlanner _layoutPlanner = new();
     private AppSettings _settings;
     private BitmapSource? _sourceBitmap;
     private BitmapSource? _resultBitmap;
@@ -119,15 +120,42 @@ public partial class MainWindow : Window
         _isGenerating = true;
         GenerateButton.IsEnabled = false;
         GenerateButton.Content = "AI 편집 중...";
-        GenerationStatusTextBlock.Text = $"OpenRouter 요청 중...\n{selectedModelId} / {aspectRatio} / 2K";
         SaveEditorState();
 
         var stopwatch = Stopwatch.StartNew();
 
         try
         {
+            var originalBytes = BitmapSourceCodec.EncodePng(_sourceBitmap);
+            var protectedLayer = LogoBackgroundProcessor.ExtractProtectedLogo(_sourceBitmap);
+            LogoLayoutPlan? layoutPlan = null;
+            BitmapSource aiInput = _sourceBitmap;
+
+            if (!string.IsNullOrWhiteSpace(subtitle))
+            {
+                GenerationStatusTextBlock.Text = "AI 레이아웃 분석 중...";
+                layoutPlan = await _layoutPlanner.PlanAsync(
+                    _settings.ApiKey,
+                    originalBytes,
+                    "image/png",
+                    subtitle,
+                    outputWidth,
+                    outputHeight);
+
+                var (referenceWidth, referenceHeight) = GetReferenceCanvasSize(aspectRatio);
+                aiInput = ImageComposer.ComposePreparedLayout(
+                    protectedLayer.Image,
+                    referenceWidth,
+                    referenceHeight,
+                    transparentBackground,
+                    backgroundColor,
+                    layoutPlan);
+            }
+
+            GenerationStatusTextBlock.Text = $"OpenRouter 요청 중...\n{selectedModelId} / {aspectRatio} / 2K";
+
             var request = new NaturalLogoEditRequest(
-                BitmapSourceCodec.EncodePng(_sourceBitmap),
+                BitmapSourceCodec.EncodePng(aiInput),
                 "image/png",
                 selectedModelId,
                 subtitle,
@@ -136,7 +164,8 @@ public partial class MainWindow : Window
                 transparentBackground,
                 transparentBackground ? null : FormatColor(backgroundColor),
                 aspectRatio,
-                "2K");
+                "2K",
+                layoutPlan);
 
             var aiResult = await _openRouterImageClient.NaturalEditAsync(_settings.ApiKey, request);
             stopwatch.Stop();
@@ -145,11 +174,15 @@ public partial class MainWindow : Window
             await File.WriteAllBytesAsync(rawPath, aiResult.ImageBytes);
 
             var aiBitmap = BitmapSourceCodec.Decode(aiResult.ImageBytes);
+            var protectedComposite = layoutPlan is null
+                ? aiBitmap
+                : ImageComposer.OverlayProtectedLogo(aiBitmap, protectedLayer.Image, layoutPlan);
+
             GenerationStatusTextBlock.Text =
                 $"AI 응답 완료: {stopwatch.Elapsed.TotalSeconds:0.0}초 / {aiBitmap.PixelWidth}×{aiBitmap.PixelHeight}\nraw: {Path.GetFileName(rawPath)}";
 
             var finalResult = ImagePostProcessor.FitToOutput(
-                aiBitmap,
+                protectedComposite,
                 outputWidth,
                 outputHeight,
                 transparentBackground,
@@ -177,6 +210,27 @@ public partial class MainWindow : Window
             GenerateButton.Content = "생성 / 편집";
             UpdateGenerateButtonState();
         }
+    }
+
+    private static (int Width, int Height) GetReferenceCanvasSize(string aspectRatio)
+    {
+        var parts = aspectRatio.Split(':');
+        if (parts.Length != 2
+            || !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var widthPart)
+            || !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var heightPart)
+            || widthPart <= 0
+            || heightPart <= 0)
+        {
+            return (2048, 512);
+        }
+
+        var ratio = widthPart / heightPart;
+        if (ratio >= 1.0)
+        {
+            return (2048, Math.Max(256, (int)Math.Round(2048 / ratio)));
+        }
+
+        return (Math.Max(256, (int)Math.Round(2048 * ratio)), 2048);
     }
 
     private void SaveAsButton_Click(object sender, RoutedEventArgs e)
