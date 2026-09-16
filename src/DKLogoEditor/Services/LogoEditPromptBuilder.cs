@@ -7,30 +7,31 @@ public static class LogoEditPromptBuilder
     public static string Build(LogoSubtitleEditRequest request)
     {
         var backgroundInstruction = request.TransparentBackground
-            ? "The editable background should be transparent."
-            : $"The editable background should use the requested color {request.BackgroundColorHex ?? "#FFFFFF"}.";
+            ? "Preserve the transparent background. Do not introduce an opaque background."
+            : $"Preserve the existing flat background color {request.BackgroundColorHex ?? "#FFFFFF"} exactly.";
 
         var subtitleInstruction = string.IsNullOrWhiteSpace(request.Subtitle)
             ? "Do not add any subtitle text."
-            : $"Add the subtitle text exactly as written: \"{request.Subtitle}\". Place it naturally relative to the existing logo with appropriate spacing, alignment, scale, and visual balance.";
+            : $"Add the subtitle text exactly as written: \"{request.Subtitle}\". Draw it naturally inside the empty lower subtitle area only, with appropriate font style, spacing, alignment, and visual balance relative to the protected logo.";
 
         return $"""
-You are preparing an editable logo composition for a final {request.OutputWidth} x {request.OutputHeight} output.
+The input image is already prepared as the final {request.OutputWidth} x {request.OutputHeight} logo composition canvas.
+The original logo artwork is already positioned and scaled correctly. Treat it as a protected, immutable layer.
 
 STRICT PRESERVATION RULE:
-- Do not redraw, recolor, restyle, reshape, retouch, simplify, sharpen, blur, or otherwise modify any non-background part of the original logo.
-- The original logo artwork may only be moved and proportionally scaled to make room for the subtitle.
-- Keep the original logo aspect ratio.
-- Do not cover or overlap the original logo artwork with new content.
+- Do not move, redraw, recolor, restyle, reshape, retouch, simplify, sharpen, blur, or otherwise modify the existing logo artwork.
+- Do not add content over the logo artwork.
+- Do not alter pixels outside the reserved lower subtitle area except where strictly necessary to preserve transparency.
+- Do not recreate or duplicate the logo.
 
-EDITABLE AREAS:
-- Background only.
-- Newly added subtitle area only.
+EDITABLE AREA:
+- Only the empty lower subtitle area is editable.
+- The subtitle must remain entirely inside that area.
 
 {backgroundInstruction}
 {subtitleInstruction}
 
-The returned image is an intermediate design reference. Preserve the original logo artwork exactly in appearance while arranging the composition naturally for the requested output aspect ratio.
+Return a clean logo image with the same overall composition and aspect ratio. The existing logo must remain visually unchanged.
 """;
     }
 }
