@@ -98,30 +98,29 @@ public sealed class OpenRouterLayoutPlanner
 
     private static string BuildPrompt(string subtitle, int outputWidth, int outputHeight)
     {
-        return $"""
-You are a logo layout art director. Analyze the supplied ORIGINAL logo and decide how to add the supplementary name exactly as written: "{subtitle}".
-Final canvas: {outputWidth} x {outputHeight}.
-
-The original logo artwork itself must never be redrawn, recolored, restyled, distorted, cropped, or edited. You may only decide its proportional scale and position.
-Decide the composition a professional designer would choose automatically. Do not assume the subtitle belongs below the logo. It may go below, beside, above, or in another clean open area if that is visually better.
-Reduce the original logo only when needed to create a balanced composition. Keep it as large as practical otherwise.
-The subtitle is secondary information and must not overpower the logo. Logo and subtitle areas must not overlap. Keep comfortable outer margins.
-
-Return ONLY one JSON object. All coordinates and sizes are normalized from 0.0 to 1.0 relative to the final canvas:
-{{
-  "logo_x": 0.0,
-  "logo_y": 0.0,
-  "logo_width": 0.0,
-  "logo_height": 0.0,
-  "subtitle_x": 0.0,
-  "subtitle_y": 0.0,
-  "subtitle_width": 0.0,
-  "subtitle_height": 0.0,
-  "subtitle_alignment": "left|center|right"
-}}
-
-Use rectangles that fit fully inside the canvas and do not overlap. The program will preserve the original logo aspect ratio inside your proposed logo rectangle.
-""";
+        return string.Join(Environment.NewLine,
+            "You are a logo layout art director. Analyze the supplied ORIGINAL logo and decide how to add the supplementary name exactly as written: \"" + subtitle + "\".",
+            $"Final canvas: {outputWidth} x {outputHeight}.",
+            string.Empty,
+            "The original logo artwork itself must never be redrawn, recolored, restyled, distorted, cropped, or edited. You may only decide its proportional scale and position.",
+            "Decide the composition a professional designer would choose automatically. Do not assume the subtitle belongs below the logo. It may go below, beside, above, or in another clean open area if that is visually better.",
+            "Reduce the original logo only when needed to create a balanced composition. Keep it as large as practical otherwise.",
+            "The subtitle is secondary information and must not overpower the logo. Logo and subtitle areas must not overlap. Keep comfortable outer margins.",
+            string.Empty,
+            "Return ONLY one JSON object. All coordinates and sizes are normalized from 0.0 to 1.0 relative to the final canvas:",
+            "{",
+            "  \"logo_x\": 0.0,",
+            "  \"logo_y\": 0.0,",
+            "  \"logo_width\": 0.0,",
+            "  \"logo_height\": 0.0,",
+            "  \"subtitle_x\": 0.0,",
+            "  \"subtitle_y\": 0.0,",
+            "  \"subtitle_width\": 0.0,",
+            "  \"subtitle_height\": 0.0,",
+            "  \"subtitle_alignment\": \"left|center|right\"",
+            "}",
+            string.Empty,
+            "Use rectangles that fit fully inside the canvas and do not overlap. The program will preserve the original logo aspect ratio inside your proposed logo rectangle.");
     }
 
     private static double ReadNumber(JsonElement root, string name)
