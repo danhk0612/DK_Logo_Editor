@@ -9,7 +9,7 @@ public sealed record LogoSubtitleEditRequest(
     int OutputHeight,
     bool TransparentBackground,
     string? BackgroundColorHex,
-    LogoLayoutPlan LayoutPlan);
+    LogoLayoutPlan? LayoutPlan = null);
 
 public sealed record OpenRouterImageResult(
     byte[] ImageBytes,
