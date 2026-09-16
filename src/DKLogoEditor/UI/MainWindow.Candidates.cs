@@ -52,7 +52,6 @@ public partial class MainWindow
         var subtitle = SubtitleTextBox.Text.Trim();
         var selectedModelId = (ModelComboBox.SelectedItem as ModelOption)?.ModelId
                               ?? _settings.DefaultModelId;
-        var aspectRatio = ImagePostProcessor.SelectClosestAspectRatio(outputWidth, outputHeight);
 
         _isGenerating = true;
         GenerateButton.IsEnabled = false;
@@ -68,6 +67,9 @@ public partial class MainWindow
             var preparedInput = AiInputPreparationService.UpscaleForAi(_sourceBitmap);
             var preparedBytes = BitmapSourceCodec.EncodePng(preparedInput);
 
+            // OutputWidth/OutputHeight remain in the request for final local resize and
+            // prompt context compatibility only. Candidate image generation itself does
+            // not send fixed resolution/aspect-ratio parameters to OpenRouter.
             var request = new NaturalLogoEditRequest(
                 preparedBytes,
                 "image/png",
@@ -77,8 +79,8 @@ public partial class MainWindow
                 outputHeight,
                 transparentBackground,
                 transparentBackground ? null : FormatColor(backgroundColor),
-                aspectRatio,
-                "2K",
+                string.Empty,
+                string.Empty,
                 null);
 
             var totalCost = 0.0;
@@ -87,7 +89,7 @@ public partial class MainWindow
             for (var candidateNumber = 1; candidateNumber <= 3; candidateNumber++)
             {
                 GenerationStatusTextBlock.Text =
-                    $"AI 후보 {candidateNumber}/3 생성 중...\n{selectedModelId} / {aspectRatio} / 2K";
+                    $"AI 후보 {candidateNumber}/3 생성 중...\n모델: {selectedModelId}";
                 await Dispatcher.Yield(DispatcherPriority.Render);
 
                 var result = await _candidateClient.GenerateAsync(
@@ -121,7 +123,7 @@ public partial class MainWindow
 
             var costText = hasCost ? $" / 총 비용 ${totalCost:0.######}" : string.Empty;
             GenerationStatusTextBlock.Text =
-                $"후보 3개 생성 완료{costText}\n원하는 후보를 클릭하면 {outputWidth}×{outputHeight}로 리사이징 후 자동 저장됩니다.";
+                $"후보 3개 생성 완료{costText}\n모델: {selectedModelId}\n원하는 후보를 클릭하면 {outputWidth}×{outputHeight}로 로컬 리사이징 후 자동 저장됩니다.";
         }
         catch (Exception ex)
         {
