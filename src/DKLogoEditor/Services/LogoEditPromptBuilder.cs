@@ -6,7 +6,8 @@ public static class LogoEditPromptBuilder
 {
     public static string Build(LogoSubtitleEditRequest request)
     {
-        var p = request.LayoutPlan;
+        var p = request.LayoutPlan
+                ?? LogoLayoutPlan.Fallback(request.OutputWidth, request.OutputHeight, request.Subtitle.Length);
         var backgroundInstruction = request.TransparentBackground
             ? "Keep the background transparent. Do not create a white or colored panel behind the subtitle."
             : $"The canvas background is {request.BackgroundColorHex ?? "#FFFFFF"}. Do not create a separate panel, banner, strip, box, or plate behind the subtitle.";
