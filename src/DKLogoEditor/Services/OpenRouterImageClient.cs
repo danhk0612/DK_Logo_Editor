@@ -16,6 +16,44 @@ public sealed class OpenRouterImageClient
         _httpClient = httpClient ?? SharedHttpClient;
     }
 
+    public async Task<OpenRouterImageResult> NaturalEditAsync(
+        string apiKey,
+        NaturalLogoEditRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(apiKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ModelId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.SourceMediaType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.AspectRatio);
+
+        if (request.SourceImageBytes.Length == 0)
+        {
+            throw new ArgumentException("Source image is empty.", nameof(request));
+        }
+
+        var sourceDataUrl = $"data:{request.SourceMediaType};base64,{Convert.ToBase64String(request.SourceImageBytes)}";
+        var payload = new
+        {
+            model = request.ModelId,
+            prompt = AiNaturalEditPromptBuilder.Build(request),
+            resolution = request.Resolution,
+            aspect_ratio = request.AspectRatio,
+            input_references = new[]
+            {
+                new
+                {
+                    type = "image_url",
+                    image_url = new
+                    {
+                        url = sourceDataUrl
+                    }
+                }
+            }
+        };
+
+        return await SendImageRequestAsync(apiKey, payload, request.ModelId, cancellationToken);
+    }
+
     public async Task<OpenRouterImageResult> EditAsync(
         string apiKey,
         LogoSubtitleEditRequest request,
@@ -48,6 +86,15 @@ public sealed class OpenRouterImageClient
             }
         };
 
+        return await SendImageRequestAsync(apiKey, payload, request.ModelId, cancellationToken);
+    }
+
+    private async Task<OpenRouterImageResult> SendImageRequestAsync(
+        string apiKey,
+        object payload,
+        string modelId,
+        CancellationToken cancellationToken)
+    {
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "https://openrouter.ai/api/v1/images")
         {
             Content = JsonContent.Create(payload)
@@ -55,7 +102,12 @@ public sealed class OpenRouterImageClient
         httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
         using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new InvalidOperationException(
+                $"OpenRouter image request failed ({(int)response.StatusCode} {response.ReasonPhrase}).\n{errorBody}");
+        }
 
         await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var json = await JsonDocument.ParseAsync(responseStream, cancellationToken: cancellationToken);
@@ -86,6 +138,6 @@ public sealed class OpenRouterImageClient
         return new OpenRouterImageResult(
             Convert.FromBase64String(base64),
             mediaType,
-            request.ModelId);
+            modelId);
     }
 }
