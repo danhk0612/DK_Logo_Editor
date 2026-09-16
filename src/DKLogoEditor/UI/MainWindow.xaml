@@ -133,7 +133,7 @@
                         Content="이미지 선택"
                         Height="36"
                         Margin="0,0,0,18"
-                        Click="ImageSelectButton_Click" />
+                        Click="ImageSelectButtonCandidates_Click" />
 
                 <TextBlock Text="배경" FontWeight="SemiBold" Margin="0,0,0,6" />
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
