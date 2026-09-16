@@ -43,6 +43,30 @@ public static class ImageComposer
         return ComposeBase(protectedLogo, outputWidth, outputHeight, transparentBackground, backgroundColor, layout);
     }
 
+    public static BitmapSource OverlayProtectedLogo(
+        BitmapSource aiResult,
+        BitmapSource protectedLogo,
+        LogoLayoutPlan plan)
+    {
+        var layout = CanvasLayoutEngine.Calculate(
+            aiResult.PixelWidth,
+            aiResult.PixelHeight,
+            protectedLogo.PixelWidth,
+            protectedLogo.PixelHeight,
+            plan);
+
+        var visual = new DrawingVisual();
+        RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
+
+        using (var drawing = visual.RenderOpen())
+        {
+            drawing.DrawImage(aiResult, new Rect(0, 0, aiResult.PixelWidth, aiResult.PixelHeight));
+            DrawProtectedLogo(drawing, protectedLogo, layout.LogoBounds);
+        }
+
+        return Render(visual, aiResult.PixelWidth, aiResult.PixelHeight);
+    }
+
     public static BitmapSource ComposeWithAiSubtitle(
         BitmapSource protectedLogo,
         BitmapSource aiReference,
