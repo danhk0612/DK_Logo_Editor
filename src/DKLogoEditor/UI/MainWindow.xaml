@@ -86,9 +86,10 @@
                 </Grid>
 
                 <TextBlock Text="모델" FontWeight="SemiBold" Margin="0,0,0,6" />
-                <ComboBox Height="30" Margin="0,0,0,22" IsEnabled="False">
-                    <ComboBoxItem Content="설정 후 모델 선택" IsSelected="True" />
-                </ComboBox>
+                <ComboBox x:Name="ModelComboBox"
+                          Height="30"
+                          Margin="0,0,0,22"
+                          DisplayMemberPath="DisplayName" />
 
                 <Button Content="생성 / 편집" Height="40" Margin="0,0,0,10" IsEnabled="False" />
                 <Button Content="PNG 저장" Height="36" IsEnabled="False" />

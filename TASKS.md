@@ -4,14 +4,14 @@
 
 ## T01. 프로젝트 골격 및 기본 창
 
-- [ ] .NET 8 WPF 프로젝트 생성
-- [ ] MainWindow 생성
-- [ ] SettingsWindow 생성
-- [ ] 메인 창에 최소 작업 항목 배치
-- [ ] 기본 출력 크기 200 × 60 표시
-- [ ] 프로젝트가 Windows에서 빌드 가능한 구조인지 확인
+- [x] .NET 8 WPF 프로젝트 생성
+- [x] MainWindow 생성
+- [x] SettingsWindow 생성
+- [x] 메인 창에 최소 작업 항목 배치
+- [x] 기본 출력 크기 200 × 60 표시
+- [x] 프로젝트가 Windows에서 빌드 가능한 구조인지 확인
 
-완료 조건: 앱이 실행되고 메인 창과 설정 창을 열 수 있는 기본 구조가 존재한다.
+완료 조건: GitHub Actions Windows/.NET 8 Release 빌드에서 Restore와 Build 성공.
 
 ## T02. 설정 저장 및 모델 목록
 
