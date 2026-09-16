@@ -98,14 +98,22 @@ public sealed class OpenRouterLayoutPlanner
 
     private static string BuildPrompt(string subtitle, int outputWidth, int outputHeight)
     {
+        var ratio = outputWidth / (double)outputHeight;
+        var wideGuidance = ratio >= 2.5
+            ? "This is a wide logo canvas. Actively compare horizontal lockups (subtitle beside or structurally aligned with the logo) against below-logo arrangements. Prefer a compact horizontal composition when it is visually natural; do not default to centered-below simply because it is safe."
+            : "Compare several plausible arrangements rather than defaulting to centered-below.";
+
         return string.Join(Environment.NewLine,
             "You are a logo layout art director. Analyze the supplied ORIGINAL logo and decide how to add the supplementary name exactly as written: \"" + subtitle + "\".",
-            $"Final canvas: {outputWidth} x {outputHeight}.",
+            $"Final canvas: {outputWidth} x {outputHeight} (aspect ratio {ratio:0.00}:1).",
             string.Empty,
             "The original logo artwork itself must never be redrawn, recolored, restyled, distorted, cropped, or edited. You may only decide its proportional scale and position.",
-            "Decide the composition a professional designer would choose automatically. Do not assume the subtitle belongs below the logo. It may go below, beside, above, or in another clean open area if that is visually better.",
+            "Before choosing, internally compare at least these families: subtitle beside the logo, subtitle below-left aligned to the logo structure, subtitle below-right, and centered-below. Choose the one that best fits this specific logo and target canvas.",
+            wideGuidance,
+            "Use the available canvas efficiently. Avoid excessive empty margins. Aim for the combined logo-plus-subtitle content to occupy roughly 80-90% of the useful width and 65-85% of the useful height when practical.",
             "Reduce the original logo only when needed to create a balanced composition. Keep it as large as practical otherwise.",
-            "The subtitle is secondary information and must not overpower the logo. Logo and subtitle areas must not overlap. Keep comfortable outer margins.",
+            "The subtitle is secondary information and must not overpower the logo. Logo and subtitle areas must not overlap. Keep safe outer margins, but do not waste space.",
+            "Choose left, center, or right alignment based on the geometry of the original logo; do not treat center alignment as the default.",
             string.Empty,
             "Return ONLY one JSON object. All coordinates and sizes are normalized from 0.0 to 1.0 relative to the final canvas:",
             "{",
@@ -120,7 +128,7 @@ public sealed class OpenRouterLayoutPlanner
             "  \"subtitle_alignment\": \"left|center|right\"",
             "}",
             string.Empty,
-            "Use rectangles that fit fully inside the canvas and do not overlap. The program will preserve the original logo aspect ratio inside your proposed logo rectangle.");
+            "Use rectangles that fit fully inside the canvas and do not overlap. The image editor will treat these as composition guidance, not as a request to redraw the original logo.");
     }
 
     private static double ReadNumber(JsonElement root, string name)
@@ -130,7 +138,7 @@ public sealed class OpenRouterLayoutPlanner
             throw new JsonException($"Missing numeric layout property: {name}");
         }
 
-        return number;
+        return Math.Clamp(number, 0.0, 1.0);
     }
 
     private static string StripCodeFence(string content)
