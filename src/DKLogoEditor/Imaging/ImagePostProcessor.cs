@@ -18,14 +18,25 @@ public static class ImagePostProcessor
             throw new ArgumentOutOfRangeException(nameof(outputWidth));
         }
 
-        var scale = Math.Min(
-            outputWidth / (double)source.PixelWidth,
-            outputHeight / (double)source.PixelHeight);
+        var targetRatio = outputWidth / (double)outputHeight;
+        var sourceRatio = source.PixelWidth / (double)source.PixelHeight;
 
-        var renderedWidth = Math.Max(1.0, source.PixelWidth * scale);
-        var renderedHeight = Math.Max(1.0, source.PixelHeight * scale);
-        var x = (outputWidth - renderedWidth) / 2.0;
-        var y = (outputHeight - renderedHeight) / 2.0;
+        Int32Rect cropBounds;
+        if (sourceRatio > targetRatio)
+        {
+            var cropWidth = Math.Max(1, (int)Math.Round(source.PixelHeight * targetRatio));
+            var cropX = Math.Max(0, (source.PixelWidth - cropWidth) / 2);
+            cropBounds = new Int32Rect(cropX, 0, Math.Min(cropWidth, source.PixelWidth - cropX), source.PixelHeight);
+        }
+        else
+        {
+            var cropHeight = Math.Max(1, (int)Math.Round(source.PixelWidth / targetRatio));
+            var cropY = Math.Max(0, (source.PixelHeight - cropHeight) / 2);
+            cropBounds = new Int32Rect(0, cropY, source.PixelWidth, Math.Min(cropHeight, source.PixelHeight - cropY));
+        }
+
+        var cropped = new CroppedBitmap(source, cropBounds);
+        cropped.Freeze();
 
         var visual = new DrawingVisual();
         RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
@@ -40,7 +51,7 @@ public static class ImagePostProcessor
                     new Rect(0, 0, outputWidth, outputHeight));
             }
 
-            drawing.DrawImage(source, new Rect(x, y, renderedWidth, renderedHeight));
+            drawing.DrawImage(cropped, new Rect(0, 0, outputWidth, outputHeight));
         }
 
         var result = new RenderTargetBitmap(
