@@ -7,7 +7,8 @@ namespace DKLogoEditor.Imaging;
 public static class ImagePostProcessor
 {
     private const byte AlphaContentThreshold = 16;
-    private const int BackgroundTolerance = 18;
+    private const int BackgroundTolerance = 24;
+    private const int BackgroundFadeTolerance = 44;
 
     public static BitmapSource FitToOutput(
         BitmapSource source,
@@ -21,14 +22,33 @@ public static class ImagePostProcessor
             throw new ArgumentOutOfRangeException(nameof(outputWidth));
         }
 
-        var targetRatio = outputWidth / (double)outputHeight;
-        var contentBounds = FindContentBounds(source, transparentBackground, backgroundColor);
-        var cropBounds = contentBounds.HasValue
-            ? BuildContentAwareCrop(source.PixelWidth, source.PixelHeight, contentBounds.Value, targetRatio)
-            : BuildCenteredAspectCrop(source.PixelWidth, source.PixelHeight, targetRatio);
+        var observedBackground = transparentBackground
+            ? backgroundColor
+            : EstimateEdgeBackground(source, backgroundColor);
 
-        var cropped = new CroppedBitmap(source, cropBounds);
+        var preparedSource = transparentBackground
+            ? source
+            : RemoveObservedBackground(source, observedBackground);
+
+        var contentBounds = FindContentBounds(
+            preparedSource,
+            transparentBackground: true,
+            backgroundColor);
+
+        var cropBounds = contentBounds ?? new Int32Rect(0, 0, preparedSource.PixelWidth, preparedSource.PixelHeight);
+        var cropped = new CroppedBitmap(preparedSource, cropBounds);
         cropped.Freeze();
+
+        // Never crop visible content to force the requested aspect ratio.
+        // Scale the complete detected content into the target canvas instead.
+        var scale = Math.Min(
+            outputWidth / (double)cropped.PixelWidth,
+            outputHeight / (double)cropped.PixelHeight);
+
+        var renderedWidth = Math.Max(1.0, cropped.PixelWidth * scale);
+        var renderedHeight = Math.Max(1.0, cropped.PixelHeight * scale);
+        var x = (outputWidth - renderedWidth) / 2.0;
+        var y = (outputHeight - renderedHeight) / 2.0;
 
         var visual = new DrawingVisual();
         RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
@@ -43,7 +63,7 @@ public static class ImagePostProcessor
                     new Rect(0, 0, outputWidth, outputHeight));
             }
 
-            drawing.DrawImage(cropped, new Rect(0, 0, outputWidth, outputHeight));
+            drawing.DrawImage(cropped, new Rect(x, y, renderedWidth, renderedHeight));
         }
 
         var result = new RenderTargetBitmap(
@@ -62,14 +82,7 @@ public static class ImagePostProcessor
         bool transparentBackground,
         Color backgroundColor)
     {
-        BitmapSource readable = source;
-        if (source.Format != PixelFormats.Bgra32)
-        {
-            var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
-            converted.Freeze();
-            readable = converted;
-        }
-
+        var readable = ConvertToBgra32(source);
         var width = readable.PixelWidth;
         var height = readable.PixelHeight;
         var stride = checked(width * 4);
@@ -116,22 +129,150 @@ public static class ImagePostProcessor
         var contentWidth = maxX - minX + 1;
         var contentHeight = maxY - minY + 1;
 
-        // If almost the whole generated canvas differs from the requested background,
-        // background detection is unreliable. Fall back to a simple centered crop.
-        if (contentWidth >= width * 0.96 && contentHeight >= height * 0.96)
-        {
-            return null;
-        }
-
-        var padX = Math.Max(4, (int)Math.Round(contentWidth * 0.06));
-        var padY = Math.Max(4, (int)Math.Round(contentHeight * 0.08));
+        // Preserve a small safety margin around all detected artwork.
+        var padX = Math.Max(4, (int)Math.Round(contentWidth * 0.045));
+        var padY = Math.Max(4, (int)Math.Round(contentHeight * 0.07));
 
         var left = Math.Max(0, minX - padX);
         var top = Math.Max(0, minY - padY);
         var right = Math.Min(width, maxX + 1 + padX);
         var bottom = Math.Min(height, maxY + 1 + padY);
 
-        return new Int32Rect(left, top, Math.Max(1, right - left), Math.Max(1, bottom - top));
+        return new Int32Rect(
+            left,
+            top,
+            Math.Max(1, right - left),
+            Math.Max(1, bottom - top));
+    }
+
+    private static BitmapSource RemoveObservedBackground(BitmapSource source, Color observedBackground)
+    {
+        var readable = ConvertToBgra32(source);
+        var width = readable.PixelWidth;
+        var height = readable.PixelHeight;
+        var stride = checked(width * 4);
+        var pixels = new byte[checked(stride * height)];
+        readable.CopyPixels(pixels, stride, 0);
+
+        for (var y = 0; y < height; y++)
+        {
+            var row = y * stride;
+            for (var x = 0; x < width; x++)
+            {
+                var offset = row + (x * 4);
+                var blue = pixels[offset];
+                var green = pixels[offset + 1];
+                var red = pixels[offset + 2];
+                var alpha = pixels[offset + 3];
+
+                if (alpha == 0)
+                {
+                    continue;
+                }
+
+                var distance = Math.Max(
+                    Math.Abs(red - observedBackground.R),
+                    Math.Max(
+                        Math.Abs(green - observedBackground.G),
+                        Math.Abs(blue - observedBackground.B)));
+
+                if (distance <= BackgroundTolerance)
+                {
+                    pixels[offset + 3] = 0;
+                    continue;
+                }
+
+                if (distance < BackgroundFadeTolerance)
+                {
+                    var factor = (distance - BackgroundTolerance)
+                                 / (double)(BackgroundFadeTolerance - BackgroundTolerance);
+                    pixels[offset + 3] = (byte)Math.Clamp(
+                        (int)Math.Round(alpha * factor),
+                        0,
+                        255);
+                }
+            }
+        }
+
+        var result = BitmapSource.Create(
+            width,
+            height,
+            96,
+            96,
+            PixelFormats.Bgra32,
+            null,
+            pixels,
+            stride);
+        result.Freeze();
+        return result;
+    }
+
+    private static Color EstimateEdgeBackground(BitmapSource source, Color fallback)
+    {
+        var readable = ConvertToBgra32(source);
+        var width = readable.PixelWidth;
+        var height = readable.PixelHeight;
+        if (width <= 0 || height <= 0)
+        {
+            return fallback;
+        }
+
+        var stride = checked(width * 4);
+        var pixels = new byte[checked(stride * height)];
+        readable.CopyPixels(pixels, stride, 0);
+
+        var samplePoints = new[]
+        {
+            (X: 0, Y: 0),
+            (X: width - 1, Y: 0),
+            (X: 0, Y: height - 1),
+            (X: width - 1, Y: height - 1),
+            (X: width / 2, Y: 0),
+            (X: width / 2, Y: height - 1),
+            (X: 0, Y: height / 2),
+            (X: width - 1, Y: height / 2)
+        };
+
+        var reds = new List<byte>();
+        var greens = new List<byte>();
+        var blues = new List<byte>();
+
+        foreach (var point in samplePoints)
+        {
+            var offset = point.Y * stride + point.X * 4;
+            if (pixels[offset + 3] < AlphaContentThreshold)
+            {
+                continue;
+            }
+
+            blues.Add(pixels[offset]);
+            greens.Add(pixels[offset + 1]);
+            reds.Add(pixels[offset + 2]);
+        }
+
+        if (reds.Count < 4)
+        {
+            return fallback;
+        }
+
+        reds.Sort();
+        greens.Sort();
+        blues.Sort();
+        var middle = reds.Count / 2;
+
+        return Color.FromRgb(reds[middle], greens[middle], blues[middle]);
+    }
+
+    private static BitmapSource ConvertToBgra32(BitmapSource source)
+    {
+        if (source.Format == PixelFormats.Bgra32)
+        {
+            return source;
+        }
+
+        var converted = new FormatConvertedBitmap(source, PixelFormats.Bgra32, null, 0);
+        converted.Freeze();
+        return converted;
     }
 
     private static bool IsNearBackground(byte red, byte green, byte blue, Color background)
@@ -139,99 +280,6 @@ public static class ImagePostProcessor
         return Math.Abs(red - background.R) <= BackgroundTolerance
                && Math.Abs(green - background.G) <= BackgroundTolerance
                && Math.Abs(blue - background.B) <= BackgroundTolerance;
-    }
-
-    private static Int32Rect BuildContentAwareCrop(
-        int sourceWidth,
-        int sourceHeight,
-        Int32Rect contentBounds,
-        double targetRatio)
-    {
-        double desiredWidth = contentBounds.Width;
-        double desiredHeight = contentBounds.Height;
-
-        if (desiredWidth / desiredHeight > targetRatio)
-        {
-            desiredHeight = desiredWidth / targetRatio;
-        }
-        else
-        {
-            desiredWidth = desiredHeight * targetRatio;
-        }
-
-        // Keep a little breathing room beyond the detected content so small outputs
-        // do not look mechanically cropped.
-        desiredWidth *= 1.04;
-        desiredHeight *= 1.04;
-
-        if (desiredWidth > sourceWidth || desiredHeight > sourceHeight)
-        {
-            var fit = Math.Min(sourceWidth / desiredWidth, sourceHeight / desiredHeight);
-            desiredWidth *= fit;
-            desiredHeight *= fit;
-        }
-
-        var cropWidth = Math.Max(1, Math.Min(sourceWidth, (int)Math.Round(desiredWidth)));
-        var cropHeight = Math.Max(1, Math.Min(sourceHeight, (int)Math.Round(desiredHeight)));
-
-        // Correct rounding so the crop follows the requested ratio as closely as possible.
-        var roundedRatio = cropWidth / (double)cropHeight;
-        if (roundedRatio > targetRatio)
-        {
-            cropWidth = Math.Max(1, Math.Min(sourceWidth, (int)Math.Round(cropHeight * targetRatio)));
-        }
-        else
-        {
-            cropHeight = Math.Max(1, Math.Min(sourceHeight, (int)Math.Round(cropWidth / targetRatio)));
-        }
-
-        var centerX = contentBounds.X + contentBounds.Width / 2.0;
-        var centerY = contentBounds.Y + contentBounds.Height / 2.0;
-
-        var x = (int)Math.Round(centerX - cropWidth / 2.0);
-        var y = (int)Math.Round(centerY - cropHeight / 2.0);
-        x = Math.Clamp(x, 0, Math.Max(0, sourceWidth - cropWidth));
-        y = Math.Clamp(y, 0, Math.Max(0, sourceHeight - cropHeight));
-
-        // Shift, rather than shrink, when needed to keep all detected content inside.
-        if (x > contentBounds.X)
-        {
-            x = Math.Max(0, contentBounds.X);
-        }
-        if (x + cropWidth < contentBounds.X + contentBounds.Width)
-        {
-            x = Math.Min(sourceWidth - cropWidth, contentBounds.X + contentBounds.Width - cropWidth);
-        }
-        if (y > contentBounds.Y)
-        {
-            y = Math.Max(0, contentBounds.Y);
-        }
-        if (y + cropHeight < contentBounds.Y + contentBounds.Height)
-        {
-            y = Math.Min(sourceHeight - cropHeight, contentBounds.Y + contentBounds.Height - cropHeight);
-        }
-
-        return new Int32Rect(
-            Math.Clamp(x, 0, Math.Max(0, sourceWidth - cropWidth)),
-            Math.Clamp(y, 0, Math.Max(0, sourceHeight - cropHeight)),
-            cropWidth,
-            cropHeight);
-    }
-
-    private static Int32Rect BuildCenteredAspectCrop(int sourceWidth, int sourceHeight, double targetRatio)
-    {
-        var sourceRatio = sourceWidth / (double)sourceHeight;
-
-        if (sourceRatio > targetRatio)
-        {
-            var cropWidth = Math.Max(1, (int)Math.Round(sourceHeight * targetRatio));
-            var cropX = Math.Max(0, (sourceWidth - cropWidth) / 2);
-            return new Int32Rect(cropX, 0, Math.Min(cropWidth, sourceWidth - cropX), sourceHeight);
-        }
-
-        var cropHeight = Math.Max(1, (int)Math.Round(sourceWidth / targetRatio));
-        var cropY = Math.Max(0, (sourceHeight - cropHeight) / 2);
-        return new Int32Rect(0, cropY, sourceWidth, Math.Min(cropHeight, sourceHeight - cropY));
     }
 
     public static string SelectClosestAspectRatio(int width, int height)
