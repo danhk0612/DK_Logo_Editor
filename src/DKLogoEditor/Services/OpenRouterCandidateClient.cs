@@ -31,15 +31,15 @@ public sealed class OpenRouterCandidateClient
         }
 
         var sourceDataUrl = $"data:{request.SourceMediaType};base64,{Convert.ToBase64String(request.SourceImageBytes)}";
+
+        // Keep the candidate request intentionally model-agnostic. Different OpenRouter
+        // image-edit models support different sizing/quality/background parameters, so
+        // the candidate workflow sends only the common edit inputs and lets the chosen
+        // model decide its native output dimensions.
         var payload = new
         {
             model = request.ModelId,
             prompt = AiCandidatePromptBuilder.Build(request, variantIndex),
-            resolution = request.Resolution,
-            aspect_ratio = request.AspectRatio,
-            quality = "high",
-            output_format = "png",
-            background = request.TransparentBackground ? "transparent" : "opaque",
             input_references = new[]
             {
                 new
