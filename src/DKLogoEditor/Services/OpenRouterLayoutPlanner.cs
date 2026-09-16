@@ -77,7 +77,7 @@ public sealed class OpenRouterLayoutPlanner
             using var planJson = JsonDocument.Parse(cleaned);
             var root = planJson.RootElement;
 
-            return new LogoLayoutPlan(
+            var plan = new LogoLayoutPlan(
                 ReadNumber(root, "logo_x"),
                 ReadNumber(root, "logo_y"),
                 ReadNumber(root, "logo_width"),
@@ -89,6 +89,8 @@ public sealed class OpenRouterLayoutPlanner
                 root.TryGetProperty("subtitle_alignment", out var alignment)
                     ? alignment.GetString() ?? "left"
                     : "left");
+
+            return NormalizeForOutput(plan, outputWidth, outputHeight, subtitle.Length);
         }
         catch (JsonException)
         {
@@ -99,8 +101,14 @@ public sealed class OpenRouterLayoutPlanner
     private static string BuildPrompt(string subtitle, int outputWidth, int outputHeight)
     {
         var ratio = outputWidth / (double)outputHeight;
+        var compact = outputWidth <= 320 || outputHeight <= 100;
+
+        var sizeGuidance = compact
+            ? "This is a SMALL final logo output. Use a compact lockup. Keep the supplementary name close to the main logo, never stranded near a far edge. The combined logo and subtitle should fit inside one compact visual group. The subtitle should normally occupy no more than about 25-30% of the total visual emphasis and must be clearly smaller than the main logo. Avoid dramatic spacing and avoid a wide three-part composition."
+            : "Use the available canvas efficiently and keep the subtitle visibly secondary to the main logo.";
+
         var wideGuidance = ratio >= 2.5
-            ? "This is a wide logo canvas. Actively compare horizontal lockups (subtitle beside or structurally aligned with the logo) against below-logo arrangements. Prefer a compact horizontal composition when it is visually natural; do not default to centered-below simply because it is safe."
+            ? "This is a wide canvas. Compare a TIGHT right-side lockup, below-left alignment, below-right alignment, and centered-below. If you choose a side placement, keep the subtitle immediately adjacent to the logo group with only a small visual gap. Do not push it toward the far right edge."
             : "Compare several plausible arrangements rather than defaulting to centered-below.";
 
         return string.Join(Environment.NewLine,
@@ -108,11 +116,13 @@ public sealed class OpenRouterLayoutPlanner
             $"Final canvas: {outputWidth} x {outputHeight} (aspect ratio {ratio:0.00}:1).",
             string.Empty,
             "The original logo artwork itself must never be redrawn, recolored, restyled, distorted, cropped, or edited. You may only decide its proportional scale and position.",
-            "Before choosing, internally compare at least these families: subtitle beside the logo, subtitle below-left aligned to the logo structure, subtitle below-right, and centered-below. Choose the one that best fits this specific logo and target canvas.",
+            "Before choosing, internally compare at least these families: tight-right beside the logo, below-left aligned to the logo structure, below-right, and centered-below. Choose the one that best fits this specific logo and target canvas.",
+            sizeGuidance,
             wideGuidance,
-            "Use the available canvas efficiently. Avoid excessive empty margins. Aim for the combined logo-plus-subtitle content to occupy roughly 80-90% of the useful width and 65-85% of the useful height when practical.",
+            "Keep all important content inside a central safe area with visible outer margins. Do not place either the original logo or the supplementary name close to the canvas edges.",
+            "Avoid excessive empty margins. At the same time, never solve the layout by spreading the logo and subtitle far apart.",
             "Reduce the original logo only when needed to create a balanced composition. Keep it as large as practical otherwise.",
-            "The subtitle is secondary information and must not overpower the logo. Logo and subtitle areas must not overlap. Keep safe outer margins, but do not waste space.",
+            "The subtitle is secondary information and must not overpower the logo. Logo and subtitle areas must not overlap.",
             "Choose left, center, or right alignment based on the geometry of the original logo; do not treat center alignment as the default.",
             string.Empty,
             "Return ONLY one JSON object. All coordinates and sizes are normalized from 0.0 to 1.0 relative to the final canvas:",
@@ -129,6 +139,36 @@ public sealed class OpenRouterLayoutPlanner
             "}",
             string.Empty,
             "Use rectangles that fit fully inside the canvas and do not overlap. The image editor will treat these as composition guidance, not as a request to redraw the original logo.");
+    }
+
+    private static LogoLayoutPlan NormalizeForOutput(
+        LogoLayoutPlan plan,
+        int outputWidth,
+        int outputHeight,
+        int subtitleLength)
+    {
+        var compact = outputWidth <= 320 || outputHeight <= 100;
+        if (!compact)
+        {
+            return plan;
+        }
+
+        // Keep a compact safe area for tiny outputs. If the model proposes an overly
+        // large or far-separated subtitle, fall back to a deterministic compact plan.
+        var subtitleTooLarge = plan.SubtitleWidth > 0.36 || plan.SubtitleHeight > 0.46;
+        var nearEdge = plan.SubtitleX < 0.02
+                       || plan.SubtitleY < 0.02
+                       || plan.SubtitleX + plan.SubtitleWidth > 0.98
+                       || plan.SubtitleY + plan.SubtitleHeight > 0.98;
+
+        var logoCenterX = plan.LogoX + plan.LogoWidth / 2.0;
+        var subtitleCenterX = plan.SubtitleX + plan.SubtitleWidth / 2.0;
+        var separated = Math.Abs(logoCenterX - subtitleCenterX) > 0.58
+                        && plan.SubtitleY < plan.LogoY + plan.LogoHeight;
+
+        return subtitleTooLarge || nearEdge || separated
+            ? LogoLayoutPlan.Fallback(outputWidth, outputHeight, subtitleLength)
+            : plan;
     }
 
     private static double ReadNumber(JsonElement root, string name)
