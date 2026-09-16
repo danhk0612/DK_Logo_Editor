@@ -35,6 +35,20 @@ public static class ResultFileService
         return candidate;
     }
 
+    public static string GetAutomaticAiRawPath(string sourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(sourcePath))
+        {
+            throw new InvalidOperationException("원본 이미지 경로가 없습니다.");
+        }
+
+        var directory = Path.GetDirectoryName(sourcePath)
+                        ?? throw new InvalidOperationException("원본 이미지 폴더를 확인할 수 없습니다.");
+        var baseName = Path.GetFileNameWithoutExtension(sourcePath);
+        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
+        return Path.Combine(directory, $"{baseName}_ai_raw_{timestamp}.png");
+    }
+
     public static void SavePng(BitmapSource image, string path)
     {
         var encoder = new PngBitmapEncoder();
