@@ -7,8 +7,8 @@ public static class AiCandidatePromptBuilder
     public static string Build(NaturalLogoEditRequest request, int variantIndex)
     {
         var backgroundInstruction = request.TransparentBackground
-            ? "Use a fully transparent background. Do not place the logo or supplementary text on a white, gray, or colored panel."
-            : $"Use one uniform solid background color exactly {request.BackgroundColorHex ?? "#FFFFFF"} across the entire canvas. Do not use gradients, panels, strips, patches, textures, or alternate background colors.";
+            ? "Use a transparent background if the selected model supports it. Do not place the logo or supplementary text on a white, gray, or colored panel."
+            : $"Use one uniform solid background color exactly {request.BackgroundColorHex ?? "#FFFFFF"} across the canvas. Do not use gradients, panels, strips, patches, textures, or alternate background colors.";
 
         var subtitleInstruction = string.IsNullOrWhiteSpace(request.Subtitle)
             ? "Do not add any supplementary text, labels, or extra graphics."
@@ -32,11 +32,11 @@ Render Korean and other non-Latin lettering sharply and exactly. Do not paraphra
         return $"""
 Create a polished final logo composition from the supplied ORIGINAL logo image.
 
-TARGET
-- Intended final display size: {request.OutputWidth} x {request.OutputHeight}.
-- The generated image will later be proportionally fitted into that final size without cropping.
-- Compose the important content compactly enough that it stays readable after significant downscaling.
-- Keep all important content safely away from the outer edges.
+WORKING INTENT
+- Work at the model's natural image dimensions and aspect ratio.
+- Do not target or imitate a specific final pixel size; the application will resize the selected candidate afterward.
+- Keep the important content compact and safely inside the image so it remains readable after later downscaling.
+- Leave a modest safe margin around the complete logo lockup.
 
 ORIGINAL LOGO
 - Preserve the original logo's identity and appearance as closely as possible.
